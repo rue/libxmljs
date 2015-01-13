@@ -7,6 +7,10 @@
 
 #include <libxml/HTMLparser.h>
 #include <libxml/xmlschemas.h>
+#include <libxml/xmlstring.h>
+
+#define LIBXML_C14N_ENABLED
+#include <libxml/c14n.h>
 
 #include "xml_document.h"
 #include "xml_element.h"
@@ -179,6 +183,58 @@ NAN_METHOD(XmlDocument::ToString)
 
     NanReturnValue(str);
 }
+
+
+// Canonicalization provided here since it makes sense.
+// Currently supports only 1.1 inclusive c14n for full
+// documents only.
+//
+// TODO Tests for input -> expected for 1.1 inclusive.
+// TODO Why does freeing cause: "memory tag error occurs"
+// TODO Partial documents instead of full document only.
+// TODO Option to include/exclude comments.
+// TODO Inclusive c14n 1.0 option.
+// TODO Exclusive c14n 1.0 option.
+// TODO Exclusive c14n inclusive namespaces.
+//
+NAN_METHOD(XmlDocument::ToC14NString)
+{
+    NanScope();
+
+    xmlNodeSetPtr ENTIRE_DOCUMENT   = NULL;
+    const int     WITHOUT_COMMENTS  = 0;
+//    const int     WITH_COMMENTS     = 1;
+    xmlChar*      PREFIXES          = xmlCharStrdup("");
+
+    XmlDocument* document = ObjectWrap::Unwrap<XmlDocument>(args.Holder());
+    assert(document);
+
+    xmlChar* buffer = NULL;
+
+    int resultLength =
+      xmlC14NDocDumpMemory(
+          document->xml_obj
+        , ENTIRE_DOCUMENT
+        , XML_C14N_1_1
+        , &PREFIXES
+        , WITHOUT_COMMENTS
+        , &buffer
+      );
+
+    if (resultLength < 0) {
+      xmlFree(buffer);
+      xmlFree(PREFIXES);
+      return NanThrowError("Couldn't canonicalize document");
+    }
+
+    v8::Local<v8::String> str =
+      NanNew<v8::String>((const char*)buffer, resultLength);
+
+    xmlFree(buffer);
+    xmlFree(PREFIXES);
+    NanReturnValue(str);
+}
+
 
 // not called from node
 // private api
@@ -439,11 +495,17 @@ XmlDocument::Initialize(v8::Handle<v8::Object> target)
             XmlDocument::ToString);
 
     NODE_SET_PROTOTYPE_METHOD(tmpl,
+            "_toC14NString",
+            XmlDocument::ToC14NString);
+
+    NODE_SET_PROTOTYPE_METHOD(tmpl,
             "_validate",
             XmlDocument::Validate);
+
     NODE_SET_PROTOTYPE_METHOD(tmpl,
             "_setDtd",
             XmlDocument::SetDtd);
+
     NODE_SET_PROTOTYPE_METHOD(tmpl,
             "_getDtd",
             XmlDocument::GetDtd);

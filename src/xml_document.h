@@ -52,6 +52,7 @@ protected:
     static NAN_METHOD(Doc);
     static NAN_METHOD(Errors);
     static NAN_METHOD(ToString);
+    static NAN_METHOD(ToC14NString);
     static NAN_METHOD(Validate);
 };
 
